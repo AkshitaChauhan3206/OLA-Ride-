@@ -45,20 +45,23 @@ def get_connection():
 # Section: small helpers
 
 def show_chart(fig):
-    # Draw a chart, the fallback keeps the app working on newer Streamlit versions
+    # Draw a chart, try the newer Streamlit option first and fall back to the older one
     key = f"chart_{next(chart_ids)}"
     try:
-        st.plotly_chart(fig, use_container_width=True, key=key)
-    except TypeError:
         st.plotly_chart(fig, width="stretch", key=key)
+    except Exception:
+        st.plotly_chart(fig, use_container_width=True, key=key)
 
 
 def show_table(table, height=None):
-    # Draw a table with the same fallback idea
+    # Draw a table, height is passed only when it is set because newer Streamlit rejects an empty height
+    options = {"hide_index": True}
+    if height is not None:
+        options["height"] = height
     try:
-        st.dataframe(table, use_container_width=True, hide_index=True, height=height)
-    except TypeError:
-        st.dataframe(table, width="stretch", hide_index=True, height=height)
+        st.dataframe(table, width="stretch", **options)
+    except Exception:
+        st.dataframe(table, use_container_width=True, **options)
 
 
 def html(text):
@@ -333,6 +336,9 @@ def tab_insights(full):
 def tab_sql(df):
     html(styles.section("01", "SQL lab", "The project SQL questions run on a live copy of the data."))
     queries = load_queries()
+    if not queries:
+        st.warning("The file ola_queries.sql was not found. Upload it to the sql folder of the repository.")
+        return
     labels = [f"Q{q['number']}  {q['title']}" for q in queries]
     choice = st.selectbox("Pick a question", labels)
     query = queries[labels.index(choice)]
@@ -373,7 +379,13 @@ def tab_powerbi():
 # Section: page
 
 def main():
-    full = get_data()
+    # Show a clear message if the data file is missing from the repository
+    try:
+        full = get_data()
+    except FileNotFoundError as error:
+        st.error("The data file could not be found.")
+        st.code(str(error))
+        st.stop()
     html(styles.hero(
         "Ola Ride", "Insights",
         "Analysis of one month of Ola ride bookings: completed rides, cancellations, revenue, payments and ratings.",
