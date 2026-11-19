@@ -170,30 +170,51 @@ def action_plan(df):
     k = metrics.kpis(df)
     health = metrics.data_health(df)
     pay = metrics.payment_summary(df).set_index("Payment_Method")
+    cust = metrics.cancel_reasons(df, "customer").set_index("Reason")
     cash = pick(pay, "Cash", "Revenue_Share")
+    service = (
+        pick(cust, "Driver is not moving towards pickup location", "Share")
+        + pick(cust, "Driver asked to cancel", "Share")
+        + pick(cust, "AC is Not working", "Share")
+    )
 
+    # Each step: priority, team, action, evidence from the data, impact
     steps = [
-        ("Cut driver cancellations by 20 percent with penalties, a cancel score and fast reassignment.",
-         f"About {fmt_money(extra_revenue(df, 0.2, 0, 0))} extra revenue a month", "Driver Operations", "High"),
-        ("Fix service related customer cancels by 30 percent: pickup alerts, no cancel requests by drivers, AC checks.",
-         f"About {fmt_money(extra_revenue(df, 0, 0.3, 0))} extra revenue a month", "Customer Experience", "High"),
-        ("Reduce no driver found by 20 percent with a wider search area, incentives and more drivers.",
-         f"About {fmt_money(extra_revenue(df, 0, 0, 0.2))} extra revenue a month", "Supply and Marketplace", "High"),
-        ("Review the pricing logic, because price does not follow distance.",
-         f"{health['very_high_fare_per_km']:,} rides priced very high and {health['very_low_fare_per_km']:,} very low per km", "Pricing and Data", "High"),
-        ("Show revenue with and without incomplete rides and add vehicle checks.",
-         f"{fmt_money(k['incomplete_value'])} at risk", "Quality and Fleet", "Medium"),
-        ("Give a small UPI cashback to move riders from cash to digital payment.",
-         f"Cash is {fmt_pct(cash)} of revenue", "Payments", "Medium"),
-        ("Give an offer for the second ride and track the repeat rate every month.",
-         f"{fmt_pct(1 - k['repeat_customer_share'])} of customers booked only once" if k["repeat_customer_share"] <= 1 else "Most customers booked once", "Growth", "Medium"),
+        ("high", "Driver Operations",
+         "Cut driver cancellations by 20 percent with penalties, a cancel score and fast reassignment.",
+         f"Drivers cancel {fmt_pct(k['driver_cancel_rate'])} of all bookings",
+         f"About {fmt_money(extra_revenue(df, 0.2, 0, 0))} extra revenue a month"),
+        ("high", "Customer Experience",
+         "Fix service related customer cancels by 30 percent: pickup alerts, no cancel requests by drivers, AC checks.",
+         f"{fmt_pct(service)} of customer cancels are caused by the service",
+         f"About {fmt_money(extra_revenue(df, 0, 0.3, 0))} extra revenue a month"),
+        ("high", "Supply and Marketplace",
+         "Reduce no driver found by 20 percent with a wider search area, incentives and more drivers.",
+         f"{fmt_pct(k['no_driver_rate'])} of bookings end with no driver found",
+         f"About {fmt_money(extra_revenue(df, 0, 0, 0.2))} extra revenue a month"),
+        ("high", "Pricing and Data",
+         "Review the pricing logic, because price does not follow distance.",
+         f"Price and distance correlation is only {health['value_distance_corr']:.3f}",
+         f"{health['very_high_fare_per_km']:,} rides priced very high and {health['very_low_fare_per_km']:,} very low per km"),
+        ("medium", "Quality and Fleet",
+         "Show revenue with and without incomplete rides and add vehicle checks.",
+         f"{fmt_pct(k['incomplete_rate'])} of completed rides are marked incomplete",
+         f"{fmt_money(k['incomplete_value'])} at risk"),
+        ("medium", "Payments",
+         "Give a small UPI cashback to move riders from cash to digital payment.",
+         f"Cash is {fmt_pct(cash)} of revenue",
+         "Faster payment and less cash handling"),
+        ("medium", "Growth",
+         "Give an offer for the second ride and track the repeat rate every month.",
+         f"Only {fmt_pct(k['repeat_customer_share'])} of customers booked more than once",
+         "Higher repeat rate and steadier bookings"),
     ]
     return [
         {
-            "rank": i, "action": action, "impact": impact, "team": team,
-            "owner": team, "effect": impact, "priority": priority,
+            "rank": i, "priority": priority, "team": team, "owner": team,
+            "action": action, "evidence": evidence, "impact": impact, "effect": impact,
         }
-        for i, (action, impact, team, priority) in enumerate(steps, 1)
+        for i, (priority, team, action, evidence, impact) in enumerate(steps, 1)
     ]
 
 
