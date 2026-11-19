@@ -1,10 +1,13 @@
-# Chart builders for the dashboard, all charts share the same dark look
+# Chart builders for the dashboard, every chart shares the same clean style
+# Titles are written by the app, so the charts here have no title
 import numpy as np
 import plotly.graph_objects as go
 
-from src.config import COLORS, SEQUENCE, STATUS_COLORS, STATUS_ORDER
+from src.config import COLORS, STATUS_COLORS
 
 FONT = "Inter, Segoe UI, sans-serif"
+GRID = "#1D242C"
+NEUTRAL = "#5B6674"
 
 
 def with_alpha(hex_color, alpha):
@@ -14,184 +17,150 @@ def with_alpha(hex_color, alpha):
     return f"rgba({red},{green},{blue},{alpha})"
 
 
-def style(fig, title=None, height=340, legend=True):
-    # Apply the common dark theme to a figure
+def style(fig, height=300, legend=False):
+    # Common look for every chart
     fig.update_layout(
-        title=dict(text=title, x=0.01, font=dict(size=15, color=COLORS["text"])) if title else None,
         height=height,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family=FONT, color=COLORS["muted"], size=12),
-        margin=dict(l=10, r=10, t=50 if title else 15, b=10),
+        margin=dict(l=4, r=8, t=10, b=4),
         showlegend=legend,
-        legend=dict(orientation="h", y=-0.18, x=0, font=dict(size=11)),
+        legend=dict(orientation="h", y=1.14, x=0, font=dict(size=11), bgcolor="rgba(0,0,0,0)"),
         hoverlabel=dict(bgcolor=COLORS["card"], font_size=12, bordercolor=COLORS["border"]),
+        bargap=0.38,
     )
-    fig.update_xaxes(showgrid=False, linecolor=COLORS["border"], zeroline=False)
-    fig.update_yaxes(gridcolor=COLORS["border"], zeroline=False)
+    fig.update_xaxes(showgrid=False, showline=True, linecolor=COLORS["border"], zeroline=False,
+                     tickfont=dict(size=11), automargin=True)
+    fig.update_yaxes(gridcolor=GRID, zeroline=False, showline=False, tickfont=dict(size=11), automargin=True)
     return fig
 
 
-def volume_over_time(daily):
-    # Stacked area of bookings per day split by status
+def clean(values):
+    # Blank values become zero so empty filters never break a chart
+    return [float(v) for v in np.nan_to_num(np.array(list(values), dtype=float))]
+
+
+def trend_chart(daily):
+    # Completed and failed bookings per day with the success rate line
     fig = go.Figure()
-    for status in STATUS_ORDER:
-        if status in daily.columns:
-            fig.add_trace(go.Scatter(
-                x=daily.index, y=daily[status], name=status, mode="lines",
-                stackgroup="one", line=dict(width=0.8, color=STATUS_COLORS[status]),
-                fillcolor=with_alpha(STATUS_COLORS[status], 0.75),
-            ))
-    return style(fig, "Ride volume over time", 360)
+    fig.add_trace(go.Bar(x=daily["Booking_Date"], y=daily["Completed"], name="Completed", marker_color=COLORS["lime"]))
+    fig.add_trace(go.Bar(x=daily["Booking_Date"], y=daily["Failed"], name="Failed",
+                         marker_color=with_alpha(COLORS["coral"], 0.6)))
+    fig.add_trace(go.Scatter(x=daily["Booking_Date"], y=daily["Success_Rate"] * 100, name="Success rate",
+                             yaxis="y2", mode="lines", line=dict(color="#FFFFFF", width=2)))
+    fig.update_layout(barmode="stack", yaxis2=dict(overlaying="y", side="right", range=[0, 100],
+                                                   showgrid=False, ticksuffix="%"))
+    return style(fig, 320, legend=True)
 
 
-def status_donut(table):
-    # Donut chart of the booking status share
-    fig = go.Figure(go.Pie(
-        labels=table["Booking_Status"], values=table["Bookings"], hole=0.62,
-        marker=dict(colors=[STATUS_COLORS[s] for s in table["Booking_Status"]],
-                    line=dict(color=COLORS["bg"], width=3)),
-        textinfo="percent", sort=False,
+def waterfall(leak):
+    # Booked value minus each kind of loss gives the revenue earned
+    to_cr = 1e7
+    labels = ["Booked value", "Driver cancelled", "Customer cancelled", "No driver found", "Revenue earned"]
+    values = [leak["booked"], -leak["driver"], -leak["customer"], -leak["no_driver"], leak["earned"]]
+    text = [f"{abs(v) / to_cr:.2f} Cr" for v in values]
+    fig = go.Figure(go.Waterfall(
+        x=labels, y=[v / to_cr for v in values],
+        measure=["absolute", "relative", "relative", "relative", "total"],
+        text=text, textposition="outside", cliponaxis=False,
+        connector=dict(line=dict(color=COLORS["border"])),
+        increasing=dict(marker=dict(color=COLORS["lime"])),
+        decreasing=dict(marker=dict(color=COLORS["coral"])),
+        totals=dict(marker=dict(color=COLORS["teal"])),
     ))
-    return style(fig, "Booking status breakdown", 360)
+    fig.update_yaxes(title="Rs crore")
+    return style(fig, 320)
+
+
+def hbar(labels, values, color, fmt=",.0f", suffix="", height=280):
+    # Horizontal bars with the value written at the end of each bar
+    values = clean(values)
+    fig = go.Figure(go.Bar(
+        x=values, y=list(labels), orientation="h", marker_color=color,
+        text=[format(v, fmt) + suffix for v in values], textposition="outside", cliponaxis=False,
+        textfont=dict(color=COLORS["text"], size=11),
+    ))
+    fig.update_yaxes(autorange="reversed", showgrid=False)
+    fig.update_xaxes(showgrid=False, showticklabels=False, showline=False)
+    return style(fig, height)
+
+
+def column(labels, values, color, fmt=",.0f", suffix="", height=280, highlight=None):
+    # Vertical bars, one bar can be highlighted in lime
+    values = clean(values)
+    labels = list(labels)
+    colors = [color] * len(values)
+    if highlight in labels:
+        colors = [NEUTRAL if lab != highlight else COLORS["lime"] for lab in labels]
+    fig = go.Figure(go.Bar(
+        x=labels, y=values, marker_color=colors,
+        text=[format(v, fmt) + suffix for v in values], textposition="outside", cliponaxis=False,
+        textfont=dict(color=COLORS["text"], size=11),
+    ))
+    fig.update_yaxes(showticklabels=False)
+    return style(fig, height)
 
 
 def hourly_chart(hourly):
-    # Bars for bookings and a line for success rate by hour
+    # Bars for bookings and a line for the success rate in every hour
     fig = go.Figure()
     fig.add_trace(go.Bar(x=hourly["Hour"], y=hourly["Bookings"], name="Bookings",
-                         marker_color=COLORS["lime"], opacity=0.85))
-    fig.add_trace(go.Scatter(x=hourly["Hour"], y=hourly["Success_Rate"] * 100, name="Success rate %",
-                             yaxis="y2", mode="lines+markers",
-                             line=dict(color=COLORS["teal"], width=2), marker=dict(size=5)))
-    fig.update_layout(yaxis2=dict(overlaying="y", side="right", showgrid=False,
-                                  range=[0, 100], ticksuffix="%"))
-    fig.update_xaxes(dtick=2, title="Hour of day")
-    return style(fig, "Bookings and success rate by hour", 340)
+                         marker_color=with_alpha(COLORS["lime"], 0.85)))
+    fig.add_trace(go.Scatter(x=hourly["Hour"], y=hourly["Success_Rate"] * 100, name="Success rate",
+                             yaxis="y2", mode="lines+markers", line=dict(color="#FFFFFF", width=2),
+                             marker=dict(size=5)))
+    fig.update_layout(yaxis2=dict(overlaying="y", side="right", range=[0, 100], showgrid=False, ticksuffix="%"))
+    fig.update_xaxes(dtick=2)
+    return style(fig, 300, legend=True)
 
 
-def heatmap(matrix):
-    # Weekday by hour heatmap of the average bookings
-    fig = go.Figure(go.Heatmap(
-        z=matrix.values, x=[str(h) for h in matrix.columns], y=list(matrix.index),
-        colorscale=[[0, COLORS["card"]], [1, COLORS["lime"]]],
-        colorbar=dict(thickness=10, outlinewidth=0),
-        hovertemplate="%{y} at hour %{x}: %{z:.1f} bookings<extra></extra>",
+def donut(labels, values, colors, center_text="", height=290):
+    # Donut chart with a short text in the middle
+    fig = go.Figure(go.Pie(
+        labels=list(labels), values=clean(values), hole=0.7, sort=False,
+        marker=dict(colors=colors, line=dict(color=COLORS["bg"], width=3)), textinfo="percent",
+        textfont=dict(size=12),
     ))
-    fig.update_yaxes(autorange="reversed")
-    return style(fig, "Average bookings by weekday and hour", 340, legend=False)
+    if center_text:
+        fig.add_annotation(text=center_text, showarrow=False, font=dict(size=18, color=COLORS["text"]))
+    fig = style(fig, height, legend=True)
+    fig.update_layout(legend=dict(orientation="v", x=1.0, y=0.5))
+    return fig
 
 
-def bar(labels, values, title, color=None, horizontal=False, fmt=",.0f", highlight_max=True, height=330):
-    # Simple bar chart where the biggest bar is highlighted in lime
-    # Blank values become zero so empty filters never break the chart
-    values = [float(v) for v in np.nan_to_num(np.array(list(values), dtype=float))]
-    labels = list(labels)
-    colors = [COLORS["border"]] * len(values)
-    if color:
-        colors = [color] * len(values)
-    elif highlight_max and values:
-        colors = [COLORS["muted"]] * len(values)
-        colors[int(np.nanargmax(values))] = COLORS["lime"]
-    if horizontal:
-        fig = go.Figure(go.Bar(x=values, y=labels, orientation="h", marker_color=colors,
-                               text=[format(v, fmt) for v in values], textposition="outside",
-                               cliponaxis=False))
-        fig.update_yaxes(autorange="reversed", showgrid=False)
-        fig.update_xaxes(showgrid=False, showticklabels=False)
-    else:
-        fig = go.Figure(go.Bar(x=labels, y=values, marker_color=colors,
-                               text=[format(v, fmt) for v in values], textposition="outside",
-                               cliponaxis=False))
-    return style(fig, title, height, legend=False)
-
-
-def stacked_status_by_vehicle(summary):
-    # Share of each outcome inside every vehicle type
-    fig = go.Figure()
+def outcome_stack(summary):
+    # How every vehicle type ends its bookings, shown as 100 percent bars
     parts = [
         ("Success", "Success_Rate"), ("Canceled by Driver", "Driver_Cancel_Rate"),
         ("Canceled by Customer", "Customer_Cancel_Rate"), ("Driver Not Found", "No_Driver_Rate"),
     ]
-    for status, column in parts:
-        fig.add_trace(go.Bar(x=summary["Vehicle_Type"], y=summary[column] * 100, name=status,
-                             marker_color=STATUS_COLORS[status]))
-    fig.update_layout(barmode="stack", yaxis=dict(ticksuffix="%"))
-    return style(fig, "Outcome share by vehicle type", 340)
-
-
-def donut(labels, values, title, height=330):
-    # Generic donut chart
-    fig = go.Figure(go.Pie(
-        labels=list(labels), values=list(values), hole=0.62, sort=False,
-        marker=dict(colors=SEQUENCE[: len(list(labels))], line=dict(color=COLORS["bg"], width=3)),
-        textinfo="percent",
-    ))
-    return style(fig, title, height)
-
-
-def distance_trend(daily):
-    # Bars for total kilometres and a line for average distance per ride
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=daily["Booking_Date"], y=daily["Total_Km"], name="Total km",
-                         marker_color=COLORS["border"]))
-    fig.add_trace(go.Scatter(x=daily["Booking_Date"], y=daily["Avg_Distance"], name="Average km per ride",
-                             yaxis="y2", mode="lines+markers",
-                             line=dict(color=COLORS["lime"], width=2), marker=dict(size=5)))
-    fig.update_layout(yaxis2=dict(overlaying="y", side="right", showgrid=False))
-    return style(fig, "Ride distance per day", 340)
+    for status, col in parts:
+        fig.add_trace(go.Bar(y=summary["Vehicle_Type"], x=summary[col] * 100, name=status, orientation="h",
+                             marker_color=STATUS_COLORS[status],
+                             text=[f"{v * 100:.0f}%" for v in summary[col]], textposition="inside",
+                             textfont=dict(color="#0B0D10", size=11)))
+    fig.update_layout(barmode="stack")
+    fig.update_yaxes(autorange="reversed", showgrid=False)
+    fig.update_xaxes(range=[0, 100], showticklabels=False, showline=False)
+    return style(fig, 330, legend=True)
 
 
-def distance_histogram(ok):
-    # Distribution of the distance of completed rides
-    fig = go.Figure(go.Histogram(x=ok["Ride_Distance"], nbinsx=25, marker_color=COLORS["teal"], opacity=0.9))
-    fig.update_xaxes(title="Ride distance in km")
-    return style(fig, "Ride distance distribution", 330, legend=False)
-
-
-def reason_bars(table, title, color):
-    # Horizontal bars for cancel reasons
-    return bar(table["Reason"], table["Rides"], title, color=color, horizontal=True, height=300)
-
-
-def rating_histogram(ok):
-    # Overlay of driver and customer rating distributions
-    fig = go.Figure()
-    fig.add_trace(go.Histogram(x=ok["Driver_Ratings"], name="Driver rating", xbins=dict(size=0.2),
-                               marker_color=COLORS["lime"], opacity=0.75))
-    fig.add_trace(go.Histogram(x=ok["Customer_Rating"], name="Customer rating", xbins=dict(size=0.2),
-                               marker_color=COLORS["blue"], opacity=0.6))
-    fig.update_layout(barmode="overlay")
-    fig.update_xaxes(title="Rating")
-    return style(fig, "Rating distribution", 330)
-
-
-def rating_density(ok):
-    # Heat map to compare driver rating with customer rating
-    fig = go.Figure(go.Histogram2d(
-        x=ok["Driver_Ratings"], y=ok["Customer_Rating"], nbinsx=10, nbinsy=10,
-        colorscale=[[0, COLORS["card"]], [1, COLORS["lime"]]], colorbar=dict(thickness=10),
-    ))
-    fig.update_xaxes(title="Driver rating")
-    fig.update_yaxes(title="Customer rating")
-    return style(fig, "Customer rating against driver rating", 330, legend=False)
-
-
-def distance_value_scatter(ok, sample=4000):
-    # Random sample of rides to show how fare relates to distance
-    part = ok.sample(min(sample, len(ok)), random_state=7)
+def price_scatter(ok, sample=3000):
+    # Random sample of completed rides to show how price relates to distance
+    part = ok.sample(min(sample, len(ok)), random_state=7) if len(ok) else ok
     fig = go.Figure(go.Scattergl(
         x=part["Ride_Distance"], y=part["Booking_Value"], mode="markers",
-        marker=dict(size=4, color=COLORS["lime"], opacity=0.35),
+        marker=dict(size=4, color=COLORS["lime"], opacity=0.3),
     ))
     fig.update_xaxes(title="Ride distance in km")
-    fig.update_yaxes(title="Booking value")
-    return style(fig, "Booking value against distance", 340, legend=False)
+    fig.update_yaxes(title="Booking value in Rs")
+    return style(fig, 300)
 
 
-def fare_per_km_histogram(ok):
-    # Histogram of price per kilometre, cut at 200 so the main shape is visible
-    values = ok["Fare_Per_KM"].dropna()
-    fig = go.Figure(go.Histogram(x=values[values <= 200], nbinsx=40, marker_color=COLORS["violet"]))
-    fig.update_xaxes(title="Booking value per km, values above 200 not shown")
-    return style(fig, "Price per kilometre", 340, legend=False)
+def lever_chart(levers):
+    # Extra revenue from every improvement lever in the simulator
+    labels = list(levers.keys())
+    values = [levers[name]["revenue"] / 1e5 for name in labels]
+    return hbar(labels, values, COLORS["teal"], fmt=",.1f", suffix=" L", height=230)

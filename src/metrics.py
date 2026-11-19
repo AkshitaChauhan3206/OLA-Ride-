@@ -214,3 +214,84 @@ def data_health(df):
         "incomplete_inside_success": int(ok["Is_Incomplete"].sum()),
         "missing_cells": int(df.isna().sum().sum()),
     }
+
+
+# Customer reasons that Ola can fix with better service
+SERVICE_REASONS = [
+    "Driver is not moving towards pickup location",
+    "Driver asked to cancel",
+    "AC is Not working",
+]
+
+
+def value_leakage(df):
+    # Booked value split into what was earned and what was lost for each failure type
+    by_status = df.groupby("Booking_Status")["Booking_Value"].sum()
+    return {
+        "booked": float(df["Booking_Value"].sum()),
+        "driver": float(by_status.get("Canceled by Driver", 0)),
+        "customer": float(by_status.get("Canceled by Customer", 0)),
+        "no_driver": float(by_status.get("Driver Not Found", 0)),
+        "earned": float(by_status.get("Success", 0)),
+    }
+
+
+def daily_trend(df):
+    # Completed and failed bookings for each day with the daily success rate
+    table = df.groupby("Booking_Date").agg(Completed=("Is_Success", "sum"), Total=("Is_Success", "size"))
+    table["Failed"] = table["Total"] - table["Completed"]
+    table["Success_Rate"] = table["Completed"] / table["Total"]
+    return table.reset_index()
+
+
+def top_pickups(df, n=10):
+    # Busiest pickup areas with their success rate
+    return location_summary(df, "Pickup_Location").head(n)
+
+
+def time_slot_summary(df):
+    # Bookings and success rate for each part of the day
+    table = df.groupby("Time_Slot", observed=False).agg(
+        Bookings=("Is_Success", "size"), Success_Rate=("Is_Success", "mean")
+    )
+    return table.fillna(0).reset_index()
+
+
+def service_cancel_summary(df):
+    # Share of customer cancels caused by the service and not by the customer
+    part = df[df["Booking_Status"] == "Canceled by Customer"]
+    service = int(part["Canceled_Rides_by_Customer"].isin(SERVICE_REASONS).sum())
+    return {"total": len(part), "service": service, "share": safe_div(service, len(part))}
+
+
+def customer_summary(df):
+    # How often customers come back
+    per_customer = df.groupby("Customer_ID").size()
+    one_time = int((per_customer == 1).sum())
+    return {
+        "customers": len(per_customer),
+        "one_time": one_time,
+        "one_time_share": safe_div(one_time, len(per_customer)),
+        "avg_bookings": float(per_customer.mean()) if len(per_customer) else 0.0,
+    }
+
+
+def opportunity(df, driver_pct, service_pct, no_driver_pct):
+    # Extra rides and revenue if the chosen share of each failure type is recovered
+    k = kpis(df)
+    driver = int((df["Booking_Status"] == "Canceled by Driver").sum())
+    service = service_cancel_summary(df)["service"]
+    no_driver = int((df["Booking_Status"] == "Driver Not Found").sum())
+    avg = k["avg_booking_value"]
+    rides = {
+        "Fewer driver cancellations": driver * driver_pct,
+        "Fewer service related customer cancels": service * service_pct,
+        "Fewer no driver found": no_driver * no_driver_pct,
+    }
+    total_rides = sum(rides.values())
+    return {
+        "levers": {name: {"rides": r, "revenue": r * avg} for name, r in rides.items()},
+        "extra_rides": total_rides,
+        "extra_revenue": total_rides * avg,
+        "new_success_rate": safe_div(k["success_rides"] + total_rides, k["total_bookings"]),
+    }

@@ -3,130 +3,134 @@ from src.config import COLORS
 
 CSS = f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
 .stApp {{
     background:
-        radial-gradient(1100px 500px at 85% -10%, rgba(215,227,43,0.10), transparent 60%),
-        radial-gradient(800px 400px at -10% 10%, rgba(45,212,191,0.07), transparent 60%),
+        radial-gradient(900px 380px at 100% -8%, rgba(215,227,43,0.07), transparent 60%),
         {COLORS["bg"]};
 }}
 #MainMenu, footer, header {{ visibility: hidden; }}
-.block-container {{ padding-top: 1.4rem; padding-bottom: 3rem; max-width: 1280px; }}
+.block-container {{ padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1320px; }}
 
 /* Sidebar */
-section[data-testid="stSidebar"] {{
-    background: {COLORS["card"]};
-    border-right: 1px solid {COLORS["border"]};
-}}
-section[data-testid="stSidebar"] * {{ color: {COLORS["text"]}; }}
+section[data-testid="stSidebar"] {{ background: #0F1318; border-right: 1px solid {COLORS["border"]}; }}
+section[data-testid="stSidebar"] label p {{ font-size: 12.5px; font-weight: 600; color: {COLORS["muted"]}; }}
 
-/* Hero banner */
-.hero {{
-    position: relative; overflow: hidden;
-    padding: 28px 32px; border-radius: 22px; margin-bottom: 18px;
-    background: linear-gradient(120deg, #14181D 0%, #11151A 55%, #1A2108 100%);
-    border: 1px solid {COLORS["border"]};
+/* Top bar */
+.topbar {{
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 0 16px 0; margin-bottom: 14px; border-bottom: 1px solid {COLORS["border"]};
 }}
-.hero:after {{
-    content: ""; position: absolute; right: -60px; top: -60px;
-    width: 260px; height: 260px; border-radius: 50%;
-    border: 26px solid rgba(215,227,43,0.16);
-    box-shadow: inset 0 0 0 10px rgba(215,227,43,0.06);
+.brand {{ display: flex; align-items: center; gap: 14px; }}
+.ring {{
+    width: 30px; height: 30px; border-radius: 50%; border: 6px solid {COLORS["lime"]};
+    box-sizing: border-box; position: relative;
 }}
-.hero .tag {{
-    display: inline-block; font-size: 11px; letter-spacing: 2px; font-weight: 700;
-    color: {COLORS["lime"]}; background: rgba(215,227,43,0.10);
-    padding: 5px 12px; border-radius: 999px; margin-bottom: 12px;
+.ring:after {{
+    content: ""; position: absolute; width: 8px; height: 8px; border-radius: 50%;
+    background: {COLORS["lime"]}; top: 5px; left: 5px;
 }}
-.hero h1 {{
-    font-family: 'Space Grotesk', sans-serif; font-size: 38px; line-height: 1.1;
-    margin: 0 0 8px 0; color: {COLORS["text"]}; font-weight: 700;
+.brand .name {{ font-size: 21px; font-weight: 700; color: {COLORS["text"]}; line-height: 1.1; }}
+.brand .sub {{ font-size: 12px; color: {COLORS["muted"]}; margin-top: 2px; }}
+.badges {{ display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }}
+.badge {{
+    font-size: 12px; font-weight: 600; color: {COLORS["muted"]}; background: {COLORS["card"]};
+    border: 1px solid {COLORS["border"]}; padding: 6px 12px; border-radius: 999px;
 }}
-.hero h1 span {{ color: {COLORS["lime"]}; }}
-.hero p {{ color: {COLORS["muted"]}; margin: 0; max-width: 720px; font-size: 14.5px; line-height: 1.6; }}
+.badge.hot {{ color: {COLORS["lime"]}; border-color: rgba(215,227,43,0.35); background: rgba(215,227,43,0.07); }}
+
+/* Page menu */
+div[role="radiogroup"] {{ gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }}
+div[role="radiogroup"] > label {{
+    background: {COLORS["card"]}; border: 1px solid {COLORS["border"]}; border-radius: 999px;
+    padding: 6px 16px; cursor: pointer; margin: 0;
+}}
+div[role="radiogroup"] > label > div:first-child {{ display: none; }}
+div[role="radiogroup"] > label p {{ font-size: 13px; font-weight: 600; color: {COLORS["muted"]}; }}
+div[role="radiogroup"] > label:has(input:checked) {{
+    background: rgba(215,227,43,0.12); border-color: rgba(215,227,43,0.6);
+}}
+div[role="radiogroup"] > label:has(input:checked) p {{ color: {COLORS["lime"]}; }}
 
 /* KPI cards */
 .kpi {{
-    background: {COLORS["card"]}; border: 1px solid {COLORS["border"]};
-    border-radius: 16px; padding: 16px 18px; height: 100%;
-    transition: transform .15s ease, border-color .15s ease;
+    background: {COLORS["card"]}; border: 1px solid {COLORS["border"]}; border-radius: 14px;
+    padding: 15px 18px; height: 100%; position: relative; overflow: hidden;
 }}
-.kpi:hover {{ transform: translateY(-3px); border-color: rgba(215,227,43,0.5); }}
-.kpi .label {{ font-size: 11.5px; letter-spacing: .8px; text-transform: uppercase; color: {COLORS["muted"]}; font-weight: 600; }}
-.kpi .value {{ font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; color: {COLORS["text"]}; margin: 6px 0 2px 0; }}
+.kpi:before {{ content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: {COLORS["border"]}; }}
+.kpi.good:before {{ background: {COLORS["lime"]}; }}
+.kpi.bad:before {{ background: {COLORS["coral"]}; }}
+.kpi.warn:before {{ background: {COLORS["amber"]}; }}
+.kpi .label {{ font-size: 11.5px; letter-spacing: .7px; text-transform: uppercase; color: {COLORS["muted"]}; font-weight: 600; }}
+.kpi .value {{ font-size: 27px; font-weight: 700; color: {COLORS["text"]}; margin: 6px 0 2px 0; }}
 .kpi .sub {{ font-size: 12px; color: {COLORS["muted"]}; }}
-.kpi.good .value {{ color: {COLORS["lime"]}; }}
-.kpi.bad .value {{ color: {COLORS["coral"]}; }}
-.kpi.warn .value {{ color: {COLORS["amber"]}; }}
 
-/* Section headings */
-.section {{ margin: 26px 0 8px 0; display: flex; align-items: baseline; gap: 12px; }}
-.section .num {{ font-family: 'Space Grotesk', sans-serif; color: {COLORS["lime"]}; font-weight: 700; font-size: 14px; }}
-.section .title {{ font-size: 20px; font-weight: 700; color: {COLORS["text"]}; }}
-.caption {{ color: {COLORS["muted"]}; font-size: 13px; margin: 0 0 10px 0; }}
+/* Card headings */
+.chead {{ margin-bottom: 4px; }}
+.ctitle {{ font-size: 15px; font-weight: 700; color: {COLORS["text"]}; }}
+.ctake {{ font-size: 12.5px; color: {COLORS["muted"]}; margin-top: 3px; line-height: 1.5; }}
+.ctake b {{ color: {COLORS["lime"]}; font-weight: 600; }}
 
-/* Insight cards */
-.insight {{
-    background: {COLORS["card"]}; border: 1px solid {COLORS["border"]};
-    border-left: 4px solid {COLORS["lime"]}; border-radius: 14px;
-    padding: 16px 18px; margin-bottom: 12px;
-}}
-.insight.high {{ border-left-color: {COLORS["coral"]}; }}
-.insight.medium {{ border-left-color: {COLORS["amber"]}; }}
-.insight.low {{ border-left-color: {COLORS["teal"]}; }}
-.insight .head {{ display: flex; justify-content: space-between; gap: 10px; align-items: center; }}
-.insight .name {{ font-weight: 700; color: {COLORS["text"]}; font-size: 15px; }}
-.insight .pill {{
-    font-size: 10.5px; font-weight: 700; letter-spacing: 1px; padding: 3px 10px;
-    border-radius: 999px; background: rgba(255,255,255,0.06); color: {COLORS["muted"]}; white-space: nowrap;
-}}
-.insight .body {{ color: #C3CAD4; font-size: 13.5px; line-height: 1.65; margin-top: 8px; }}
-.insight .action {{ margin-top: 8px; font-size: 13px; color: {COLORS["lime"]}; }}
+/* Page headings */
+.page-title {{ font-size: 20px; font-weight: 700; color: {COLORS["text"]}; margin: 14px 0 2px 0; }}
+.page-sub {{ font-size: 13px; color: {COLORS["muted"]}; margin-bottom: 14px; }}
 
-/* Callout note */
+/* Notes */
 .note {{
-    background: rgba(255,176,32,0.07); border: 1px solid rgba(255,176,32,0.35);
-    color: #E9D3A3; padding: 12px 16px; border-radius: 12px; font-size: 13px; line-height: 1.6;
+    background: rgba(255,255,255,0.03); border: 1px solid {COLORS["border"]};
+    color: #B9C1CC; padding: 12px 16px; border-radius: 12px; font-size: 13px; line-height: 1.6;
 }}
 
-/* Vehicle tiles */
-.tile {{
-    background: {COLORS["card"]}; border: 1px solid {COLORS["border"]};
-    border-radius: 14px; padding: 14px 10px; text-align: center;
+/* Priority cards */
+.prio {{
+    background: {COLORS["card"]}; border: 1px solid {COLORS["border"]}; border-radius: 14px;
+    padding: 14px 16px; height: 100%;
 }}
-.tile img {{ width: 44px; height: 44px; margin-bottom: 6px; filter: drop-shadow(0 0 8px rgba(215,227,43,0.25)); }}
-.tile .vname {{ font-weight: 600; font-size: 13px; color: {COLORS["text"]}; }}
-.tile .vsub {{ font-size: 11.5px; color: {COLORS["muted"]}; }}
+.prio .rank {{ font-size: 11px; font-weight: 700; letter-spacing: 1px; color: {COLORS["lime"]}; }}
+.prio .what {{ font-size: 14px; font-weight: 600; color: {COLORS["text"]}; margin: 6px 0; line-height: 1.45; }}
+.prio .money {{ font-size: 13px; color: {COLORS["lime"]}; font-weight: 600; }}
+.prio .team {{ font-size: 12px; color: {COLORS["muted"]}; margin-top: 4px; }}
 
-/* Tabs */
-.stTabs [data-baseweb="tab-list"] {{ gap: 6px; border-bottom: 1px solid {COLORS["border"]}; flex-wrap: wrap; }}
-.stTabs [data-baseweb="tab"] {{
-    background: transparent; border-radius: 10px 10px 0 0; padding: 10px 16px;
-    color: {COLORS["muted"]}; font-weight: 600;
+/* Tables */
+.dtable {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+.dtable th {{
+    text-align: left; color: {COLORS["muted"]}; font-weight: 600; font-size: 11.5px; letter-spacing: .6px;
+    text-transform: uppercase; padding: 10px 12px; border-bottom: 1px solid {COLORS["border"]};
 }}
-.stTabs [aria-selected="true"] {{ color: {COLORS["lime"]} !important; background: rgba(215,227,43,0.08); }}
-.stTabs [data-baseweb="tab-highlight"] {{ background-color: {COLORS["lime"]}; }}
-
-/* Chart containers */
-div[data-testid="stPlotlyChart"] {{
-    background: {COLORS["card"]}; border: 1px solid {COLORS["border"]};
-    border-radius: 16px; padding: 8px;
-}}
+.dtable td {{ padding: 11px 12px; border-bottom: 1px solid #1A2028; color: {COLORS["text"]}; vertical-align: middle; }}
+.dtable tr:hover td {{ background: rgba(255,255,255,0.02); }}
+.dtable .num {{ text-align: right; font-variant-numeric: tabular-nums; }}
+.bar {{ display: flex; align-items: center; gap: 8px; min-width: 120px; }}
+.bar .track {{ flex: 1; height: 6px; background: #222A33; border-radius: 99px; overflow: hidden; }}
+.bar .fill {{ height: 100%; background: {COLORS["lime"]}; border-radius: 99px; }}
+.tag {{ font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }}
+.tag.high {{ color: {COLORS["coral"]}; background: rgba(255,107,107,0.12); }}
+.tag.medium {{ color: {COLORS["amber"]}; background: rgba(255,176,32,0.12); }}
+.tag.low {{ color: {COLORS["teal"]}; background: rgba(45,212,191,0.12); }}
 </style>
 """
 
 
-def hero(title_plain, title_accent, text, tag):
-    # Top banner of the page
+def top_bar(period_text, bookings_text, filter_text):
+    # Slim header with the brand name and the current data scope
     return (
-        '<div class="hero">'
-        f'<div class="tag">{tag}</div>'
-        f'<h1>{title_plain} <span>{title_accent}</span></h1>'
-        f'<p>{text}</p>'
-        '</div>'
+        '<div class="topbar">'
+        '<div class="brand"><div class="ring"></div>'
+        '<div><div class="name">Ola Ride Insights</div>'
+        '<div class="sub">Booking performance dashboard</div></div></div>'
+        '<div class="badges">'
+        f'<span class="badge">{period_text}</span>'
+        f'<span class="badge hot">{bookings_text}</span>'
+        f'<span class="badge">{filter_text}</span>'
+        '</div></div>'
     )
+
+
+def page_heading(title, subtitle):
+    # Title and one line of context for each page
+    return f'<div class="page-title">{title}</div><div class="page-sub">{subtitle}</div>'
 
 
 def kpi_card(label, value, sub="", tone=""):
@@ -140,40 +144,60 @@ def kpi_card(label, value, sub="", tone=""):
     )
 
 
-def section(number, title, caption=""):
-    # Numbered section heading with a short caption
-    html = f'<div class="section"><span class="num">{number}</span><span class="title">{title}</span></div>'
-    if caption:
-        html += f'<div class="caption">{caption}</div>'
-    return html
-
-
-def insight_card(name, body, action="", priority="medium"):
-    # Finding with a plain explanation and a recommended action
-    action_html = f'<div class="action">Recommended action: {action}</div>' if action else ""
-    return (
-        f'<div class="insight {priority}">'
-        f'<div class="head"><span class="name">{name}</span>'
-        f'<span class="pill">{priority.upper()} PRIORITY</span></div>'
-        f'<div class="body">{body}</div>{action_html}'
-        '</div>'
-    )
+def card_header(title, takeaway=""):
+    # Chart title with a one line takeaway
+    take = f'<div class="ctake">{takeaway}</div>' if takeaway else ""
+    return f'<div class="chead"><div class="ctitle">{title}</div>{take}</div>'
 
 
 def note(text):
-    # Warning or information box
+    # Information box
     return f'<div class="note">{text}</div>'
 
 
-def vehicle_tile(name, icon_url, sub):
-    # Small card with the vehicle icon
+def priority_card(rank, action, impact, team):
+    # Short card for the top priorities on the summary page
     return (
-        '<div class="tile">'
-        f'<img src="{icon_url}"/>'
-        f'<div class="vname">{name}</div>'
-        f'<div class="vsub">{sub}</div>'
+        '<div class="prio">'
+        f'<div class="rank">PRIORITY {rank}</div>'
+        f'<div class="what">{action}</div>'
+        f'<div class="money">{impact}</div>'
+        f'<div class="team">Owner: {team}</div>'
         '</div>'
     )
+
+
+def data_bar(text, percent):
+    # Number with a small bar next to it
+    width = max(0, min(100, percent))
+    return (
+        f'<div class="bar"><span>{text}</span>'
+        f'<div class="track"><div class="fill" style="width:{width:.0f}%"></div></div></div>'
+    )
+
+
+def html_table(headers, rows, numeric_from=1):
+    # Clean table, columns from numeric_from onwards are aligned to the right
+    head = "".join(
+        f'<th class="{"num" if i >= numeric_from else ""}">{h}</th>' for i, h in enumerate(headers)
+    )
+    body = ""
+    for row in rows:
+        cells = "".join(
+            f'<td class="{"num" if i >= numeric_from else ""}">{c}</td>' for i, c in enumerate(row)
+        )
+        body += f"<tr>{cells}</tr>"
+    return f'<table class="dtable"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
+
+
+def action_table(items):
+    # Prioritised action plan with owner, evidence and expected impact
+    headers = ["Priority", "Owner", "Action", "Evidence from the data", "Expected impact"]
+    rows = []
+    for item in items:
+        tag = f'<span class="tag {item["priority"].lower()}">{item["priority"].upper()}</span>'
+        rows.append([tag, item["team"], item["action"], item["evidence"], item["impact"]])
+    return html_table(headers, rows, numeric_from=99)
 
 
 def fmt_money(value):
