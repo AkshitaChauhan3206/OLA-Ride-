@@ -3,11 +3,10 @@ import itertools
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 from src import charts, metrics, styles
 from src.config import (
-    COLORS, GITHUB_URL, POWERBI_EMBED_URL, SLOT_ORDER, STREAMLIT_URL, VEHICLE_ORDER,
+    COLORS, GITHUB_URL, SLOT_ORDER, STREAMLIT_URL, VEHICLE_ORDER,
 )
 from src.data_loader import load_data
 from src.insights import action_plan, limits_of_data
@@ -28,7 +27,7 @@ chart_ids = itertools.count()
 
 PAGES = [
     "Executive Summary", "Cancellations", "Demand", "Revenue and Customers",
-    "Vehicles", "Action Plan", "SQL Lab", "Power BI",
+    "Vehicles", "Action Plan", "SQL Lab",
 ]
 
 
@@ -445,17 +444,6 @@ def page_sql(df):
             st.error(f"Could not run the query: {error}")
 
 
-def page_powerbi():
-    html(styles.page_heading("Power BI", "The interactive Power BI report built on the same cleaned data."))
-    if POWERBI_EMBED_URL:
-        components.iframe(POWERBI_EMBED_URL, height=640, scrolling=True)
-        return
-    html(styles.note(
-        "No Power BI link is set yet. Publish the report from Power BI, copy the embed link "
-        "and paste it into POWERBI_EMBED_URL in src/config.py. The report will then appear here."
-    ))
-
-
 # Section: page
 
 def main():
@@ -478,9 +466,6 @@ def main():
     page = st.radio("Page", PAGES, horizontal=True, label_visibility="collapsed", key="page")
     if page == "SQL Lab":
         page_sql(full)
-        return
-    if page == "Power BI":
-        page_powerbi()
         return
     if filtered.empty:
         st.warning("No rides match these filters. Please widen your selection in the sidebar.")
