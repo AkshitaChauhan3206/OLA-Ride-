@@ -4,6 +4,14 @@ from src import metrics
 from src.styles import fmt_money, fmt_pct
 
 
+def pick(table, label, column, default=0.0):
+    # Safe lookup: returns a default when the row or column is missing
+    try:
+        return table.loc[label, column]
+    except (KeyError, TypeError):
+        return default
+
+
 def build_insights(df):
     # Collect every number first so the text below stays easy to read
     k = metrics.kpis(df)
@@ -18,14 +26,16 @@ def build_insights(df):
 
     total = k["total_bookings"]
     one_point_value = total * 0.01 * k["avg_booking_value"]
-    driver_fault = cust.loc["Driver is not moving towards pickup location", "Share"] + cust.loc["Driver asked to cancel", "Share"]
-    fixable = driver_fault + cust.loc["AC is Not working", "Share"]
+    ac_share = pick(cust, "AC is Not working", "Share")
+    driver_fault = pick(cust, "Driver is not moving towards pickup location", "Share") + pick(cust, "Driver asked to cancel", "Share")
+    fixable = driver_fault + ac_share
     hour_gap = (hourly["Success_Rate"].max() - hourly["Success_Rate"].min()) * 100
-    hour_spread = hourly["Bookings"].max() / hourly["Bookings"].min() - 1
-    auto_km = veh.loc["Auto", "Avg_Distance"]
-    other_km = veh.drop("Auto")["Avg_Distance"].mean()
-    auto_value = veh.loc["Auto", "Avg_Value"]
-    other_value = veh.drop("Auto")["Avg_Value"].mean()
+    hour_spread = metrics.safe_div(hourly["Bookings"].max(), hourly["Bookings"].min()) - 1
+    auto_km = pick(veh, "Auto", "Avg_Distance")
+    other_km = veh.drop("Auto", errors="ignore")["Avg_Distance"].mean()
+    auto_value = pick(veh, "Auto", "Avg_Value")
+    other_value = veh.drop("Auto", errors="ignore")["Avg_Value"].mean()
+    cancel_ratio = metrics.safe_div(k["driver_cancel_rate"], k["customer_cancel_rate"])
 
     return [
         {
@@ -44,10 +54,10 @@ def build_insights(df):
             "priority": "high",
             "body": (
                 f"Drivers cancelled {fmt_pct(k['driver_cancel_rate'])} of all bookings, which is "
-                f"{k['driver_cancel_rate'] / k['customer_cancel_rate']:.1f} times the customer cancel rate of "
+                f"{cancel_ratio:.1f} times the customer cancel rate of "
                 f"{fmt_pct(k['customer_cancel_rate'])}. The most common driver reasons are personal or car related issues "
-                f"({fmt_pct(drv.loc['Personal & Car related issue', 'Share'])}) and customer related issues "
-                f"({fmt_pct(drv.loc['Customer related issue', 'Share'])})."
+                f"({fmt_pct(pick(drv, 'Personal & Car related issue', 'Share'))}) and customer related issues "
+                f"({fmt_pct(pick(drv, 'Customer related issue', 'Share'))})."
             ),
             "action": "Add a cancel score for drivers, give penalties for repeated cancels and reassign the booking quickly.",
         },
@@ -56,7 +66,7 @@ def build_insights(df):
             "priority": "high",
             "body": (
                 f"{fmt_pct(driver_fault)} of customer cancellations say the driver was not moving towards the pickup point "
-                f"or asked the customer to cancel. Together with AC not working ({fmt_pct(cust.loc['AC is Not working', 'Share'])}), "
+                f"or asked the customer to cancel. Together with AC not working ({fmt_pct(ac_share)}), "
                 f"{fmt_pct(fixable)} of customer cancellations are problems the company can fix. "
                 f"Only change of plans and wrong address are the customer's own reasons."
             ),
@@ -87,9 +97,9 @@ def build_insights(df):
             "name": "More than half of the revenue is paid in cash",
             "priority": "medium",
             "body": (
-                f"Cash is {fmt_pct(pay.loc['Cash', 'Revenue_Share'])} of revenue and UPI is "
-                f"{fmt_pct(pay.loc['UPI', 'Revenue_Share'])}. Credit and debit cards together are only "
-                f"{fmt_pct(pay.loc['Credit Card', 'Revenue_Share'] + pay.loc['Debit Card', 'Revenue_Share'])}."
+                f"Cash is {fmt_pct(pick(pay, 'Cash', 'Revenue_Share'))} of revenue and UPI is "
+                f"{fmt_pct(pick(pay, 'UPI', 'Revenue_Share'))}. Credit and debit cards together are only "
+                f"{fmt_pct(pick(pay, 'Credit Card', 'Revenue_Share') + pick(pay, 'Debit Card', 'Revenue_Share'))}."
             ),
             "action": "Give a small UPI cashback so that more riders pay digitally.",
         },
@@ -99,8 +109,8 @@ def build_insights(df):
             "body": (
                 f"{k['incomplete_rides']:,} rides ({fmt_pct(k['incomplete_rate'])} of completed rides, "
                 f"worth {fmt_money(k['incomplete_value'])}) have status Success but are also marked incomplete. "
-                f"Vehicle breakdown is the reason for {fmt_pct(inc.loc['Vehicle Breakdown', 'Share'])} of them and "
-                f"customer demand for {fmt_pct(inc.loc['Customer Demand', 'Share'])}."
+                f"Vehicle breakdown is the reason for {fmt_pct(pick(inc, 'Vehicle Breakdown', 'Share'))} of them and "
+                f"customer demand for {fmt_pct(pick(inc, 'Customer Demand', 'Share'))}."
             ),
             "action": "Show revenue with and without incomplete rides, and add vehicle checks to reduce breakdowns.",
         },
@@ -139,11 +149,51 @@ def build_insights(df):
             "priority": "low",
             "body": (
                 f"{health['same_pickup_drop']:,} bookings start and end in the same area, and "
-                f"{health['same_pickup_drop_completed']:,} of them were completed with an average distance of about 23 km, "
-                f"which is not possible for the same place."
+                f"{health['same_pickup_drop_completed']:,} of them were completed which is not expected for the same place. "
+                f"Check these records for location errors."
             ),
             "action": "Add a check in the booking app and review these records for location errors.",
         },
+    ]
+
+
+def extra_revenue(df, driver, service, no_driver):
+    # Extra monthly revenue if the given share of each failure type is recovered
+    try:
+        return metrics.opportunity(df, driver, service, no_driver)["extra_revenue"]
+    except Exception:
+        return 0.0
+
+
+def action_plan(df):
+    # Priority actions, ordered by effect on revenue
+    k = metrics.kpis(df)
+    health = metrics.data_health(df)
+    pay = metrics.payment_summary(df).set_index("Payment_Method")
+    cash = pick(pay, "Cash", "Revenue_Share")
+
+    steps = [
+        ("Cut driver cancellations by 20 percent with penalties, a cancel score and fast reassignment.",
+         f"About {fmt_money(extra_revenue(df, 0.2, 0, 0))} extra revenue a month", "Driver Operations", "High"),
+        ("Fix service related customer cancels by 30 percent: pickup alerts, no cancel requests by drivers, AC checks.",
+         f"About {fmt_money(extra_revenue(df, 0, 0.3, 0))} extra revenue a month", "Customer Experience", "High"),
+        ("Reduce no driver found by 20 percent with a wider search area, incentives and more drivers.",
+         f"About {fmt_money(extra_revenue(df, 0, 0, 0.2))} extra revenue a month", "Supply and Marketplace", "High"),
+        ("Review the pricing logic, because price does not follow distance.",
+         f"{health['very_high_fare_per_km']:,} rides priced very high and {health['very_low_fare_per_km']:,} very low per km", "Pricing and Data", "High"),
+        ("Show revenue with and without incomplete rides and add vehicle checks.",
+         f"{fmt_money(k['incomplete_value'])} at risk", "Quality and Fleet", "Medium"),
+        ("Give a small UPI cashback to move riders from cash to digital payment.",
+         f"Cash is {fmt_pct(cash)} of revenue", "Payments", "Medium"),
+        ("Give an offer for the second ride and track the repeat rate every month.",
+         f"{fmt_pct(1 - k['repeat_customer_share'])} of customers booked only once" if k["repeat_customer_share"] <= 1 else "Most customers booked once", "Growth", "Medium"),
+    ]
+    return [
+        {
+            "rank": i, "action": action, "impact": impact, "team": team,
+            "owner": team, "effect": impact, "priority": priority,
+        }
+        for i, (action, impact, team, priority) in enumerate(steps, 1)
     ]
 
 
